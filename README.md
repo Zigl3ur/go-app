@@ -1,1 +1,1 @@
-# go-passport
+# go-auth
