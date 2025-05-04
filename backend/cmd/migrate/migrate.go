@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/Zigl3ur/go-auth/internal/store"
+	"github.com/Zigl3ur/go-app/internal/store"
 	"gorm.io/gorm"
 )
 
