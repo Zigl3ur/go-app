@@ -33,6 +33,7 @@ type AuthService struct {
 }
 
 type Config struct {
+	Endpoint        string
 	CookieName      string
 	SessionExpirity time.Duration
 }
@@ -123,27 +124,27 @@ func (a *AuthService) DeleteUser(username, email, password string) (int64, error
 
 // create a session for given user credentials
 // return rowsAffected and an error
-func (a *AuthService) CreateSession(email, password string) (int64, error) {
+func (a *AuthService) CreateSession(email, password string) error {
 
 	var user store.User
 	// retrieve user data
 	result := a.Conn.Select("id, password").Where("email = ?", email).First(&user)
 
 	if result.Error != nil {
-		return 0, errNoAccountFound
+		return errNoAccountFound
 	}
 
 	// check password
 	isEqual := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 
 	if isEqual != nil {
-		return 0, errInvalidCredentials
+		return errInvalidCredentials
 	}
 
 	token, err := generateToken(32)
 
 	if err != nil {
-		return 0, errGenerateToken
+		return errGenerateToken
 	}
 
 	sessionTime := time.Now().Add(a.Config.SessionExpirity)
@@ -158,10 +159,10 @@ func (a *AuthService) CreateSession(email, password string) (int64, error) {
 	result = a.Conn.Create(&session)
 
 	if result.Error != nil {
-		return 0, errCreatingSession
+		return errCreatingSession
 	}
 
-	return result.RowsAffected, nil
+	return nil
 }
 
 // check if the given token is a valid session,

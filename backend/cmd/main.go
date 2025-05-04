@@ -21,10 +21,13 @@ func main() {
 	auth := &auth.AuthService{
 		Conn: db,
 		Config: &auth.Config{
+			Endpoint:        "/api/v1/auth",
 			CookieName:      "session",
 			SessionExpirity: time.Duration(24 * time.Hour),
 		},
 	}
+
+	http.HandleFunc("/login", auth.LoginHandler)
 
 	log.Fatal(http.ListenAndServe(":8000", nil))
 }
