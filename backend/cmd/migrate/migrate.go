@@ -7,6 +7,8 @@ import (
 	"gorm.io/gorm"
 )
 
+// push schema to database,
+// return an error
 func migrate(db *gorm.DB) error {
 	err := db.AutoMigrate(
 		&store.User{},

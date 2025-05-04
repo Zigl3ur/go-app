@@ -14,16 +14,17 @@ import (
 	"gorm.io/gorm"
 )
 
-const cost uint8 = 15
-
 var (
 	errInvalidEmail       = errors.New("email is invalid")
 	errInvalidUsername    = errors.New("username is too short/long (min 3, max 20)")
 	errInvalidPassword    = errors.New("password is invalid, it must be min 8 chars long, contain 1 special char, 1 upper and lower char and 1 digit")
-	errGenerateToken      = errors.New("failed to generate token")
 	errInvalidCredentials = errors.New("invalid credentials")
+	errGenerateToken      = errors.New("failed to generate token")
 	errNoAccountFound     = errors.New("no account found")
 	errCreatingSession    = errors.New("failed to create session")
+	errDeletingSession    = errors.New("failed to delete session")
+	errSessionNotFound    = errors.New("session not found")
+	errSessionInvalid     = errors.New("session invalid")
 )
 
 type AuthService struct {
@@ -93,6 +94,33 @@ func (a *AuthService) CreateUser(username, email, password string) (int64, error
 	return result.RowsAffected, nil
 }
 
+// delete a user in the database
+// return rowsAffected and an error
+func (a *AuthService) DeleteUser(username, email, password string) (int64, error) {
+
+	var user store.User
+	result := a.Conn.Select("password").Where(&store.User{Username: username, Email: email}).Find(&user)
+
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	// check password
+	isEqual := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+
+	if isEqual != nil {
+		return 0, errInvalidCredentials
+	}
+
+	result = a.Conn.Where(&user).Delete(&user)
+
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return result.RowsAffected, nil
+}
+
 // create a session for given user credentials
 // return rowsAffected and an error
 func (a *AuthService) CreateSession(email, password string) (int64, error) {
@@ -131,6 +159,44 @@ func (a *AuthService) CreateSession(email, password string) (int64, error) {
 
 	if result.Error != nil {
 		return 0, errCreatingSession
+	}
+
+	return result.RowsAffected, nil
+}
+
+// check if the given token is a valid session,
+// return true if valid, false for expired and an error
+func (a *AuthService) CheckSession(token string) (bool, error) {
+
+	var session store.Session
+	result := a.Conn.Select("token").Where(&store.Session{Token: token}).Find(&session)
+
+	if result.Error != nil {
+		return false, result.Error
+
+	} else if result.RowsAffected == 0 {
+		return false, errSessionNotFound
+	}
+
+	// check expirity of session
+	isValid := !session.ExpiresAt.Equal(time.Now())
+
+	if !isValid {
+		return false, errSessionInvalid
+	}
+
+	return true, nil
+}
+
+// delete a session in the database,
+// return rowsAffected and an error
+func (a *AuthService) DeleteSession(token string) (int64, error) {
+
+	var session store.Session
+	result := a.Conn.Where(&store.Session{Token: token}).Delete(&session)
+
+	if result.Error != nil {
+		return 0, errDeletingSession
 	}
 
 	return result.RowsAffected, nil
