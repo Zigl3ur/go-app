@@ -1,1 +1,1 @@
-# go-auth
+# go-app
