@@ -21,15 +21,14 @@ func migrate(db *gorm.DB) error {
 }
 
 func main() {
-	store := &store.Store{}
 
-	err := store.Connect("db.sql", gorm.Config{})
+	db, err := store.Connect("db.sql", gorm.Config{})
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = migrate(store.Conn)
+	err = migrate(db)
 
 	if err != nil {
 		log.Fatal(err)

@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/Zigl3ur/go-app/internal/auth"
 	"github.com/Zigl3ur/go-app/internal/store"
@@ -12,22 +12,19 @@ import (
 
 func main() {
 
-	db := &store.Store{}
-	db.Connect("db.sql", gorm.Config{})
-
-	auth := &auth.AuthService{
-		Conn: db.Conn,
-	}
-
-	rowsAffected, err := auth.CreateUser("eden", "e@ee.com", "1234")
+	db, err := store.Connect("db.sql", gorm.Config{})
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Print(rowsAffected)
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fmt.Print("a") })
+	auth := &auth.AuthService{
+		Conn: db,
+		Config: &auth.Config{
+			CookieName:      "session",
+			SessionExpirity: time.Duration(24 * time.Hour),
+		},
+	}
 
 	log.Fatal(http.ListenAndServe(":8000", nil))
 }
