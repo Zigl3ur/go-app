@@ -57,10 +57,8 @@ func (a *AuthService) CreateUser(username, email, password string) (int64, error
 		return 0, errInvalidUsername
 	}
 
-	_, err := mail.ParseAddress(email)
-
 	// check email
-	if err != nil {
+	if _, err := mail.ParseAddress(email); err != nil {
 		return 0, errInvalidEmail
 	}
 
@@ -89,7 +87,7 @@ func (a *AuthService) CreateUser(username, email, password string) (int64, error
 	result := a.Conn.Create(&user)
 
 	if result.Error != nil {
-		return result.RowsAffected, err
+		return result.RowsAffected, result.Error
 	}
 
 	return result.RowsAffected, nil
@@ -107,9 +105,7 @@ func (a *AuthService) DeleteUser(username, email, password string) (int64, error
 	}
 
 	// check password
-	isEqual := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
-
-	if isEqual != nil {
+	if isEqual := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); isEqual != nil {
 		return 0, errInvalidCredentials
 	}
 
@@ -123,28 +119,26 @@ func (a *AuthService) DeleteUser(username, email, password string) (int64, error
 }
 
 // create a session for given user credentials
-// return rowsAffected and an error
-func (a *AuthService) CreateSession(email, password string) error {
+// return the token and an error
+func (a *AuthService) CreateSession(email, password string) (string, error) {
 
 	var user store.User
 	// retrieve user data
 	result := a.Conn.Select("id, password").Where("email = ?", email).First(&user)
 
 	if result.Error != nil {
-		return errNoAccountFound
+		return "", errNoAccountFound
 	}
 
 	// check password
-	isEqual := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
-
-	if isEqual != nil {
-		return errInvalidCredentials
+	if isEqual := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); isEqual != nil {
+		return "", errInvalidCredentials
 	}
 
 	token, err := generateToken(32)
 
 	if err != nil {
-		return errGenerateToken
+		return "", errGenerateToken
 	}
 
 	sessionTime := time.Now().Add(a.Config.SessionExpirity)
@@ -159,10 +153,10 @@ func (a *AuthService) CreateSession(email, password string) error {
 	result = a.Conn.Create(&session)
 
 	if result.Error != nil {
-		return errCreatingSession
+		return "", errCreatingSession
 	}
 
-	return nil
+	return token, nil
 }
 
 // check if the given token is a valid session,
@@ -180,9 +174,7 @@ func (a *AuthService) CheckSession(token string) (bool, error) {
 	}
 
 	// check expirity of session
-	isValid := !session.ExpiresAt.Equal(time.Now())
-
-	if !isValid {
+	if isValid := !session.ExpiresAt.Equal(time.Now()); !isValid {
 		return false, errSessionInvalid
 	}
 
