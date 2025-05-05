@@ -22,7 +22,7 @@ func MethodsAllowed(w http.ResponseWriter, r *http.Request, allowed ...string) b
 }
 
 // helper to encode and write an http respose as json
-func JsonResponse(w http.ResponseWriter, httpStatus int, jsonContent map[string]string) {
+func JsonResponse(w http.ResponseWriter, httpStatus int, jsonContent any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatus)
 	json.NewEncoder(w).Encode(jsonContent)

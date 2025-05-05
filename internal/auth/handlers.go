@@ -11,7 +11,13 @@ type loginBody struct {
 	Password string `json:"password"`
 }
 
-// handler for Login Logic
+type registerBody struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// handler for login endpoint
 func (a *authService) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	if isMethodAllowed := helper.MethodsAllowed(w, r, "POST"); !isMethodAllowed {
@@ -50,4 +56,56 @@ func (a *authService) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &cookie)
 		helper.JsonResponse(w, http.StatusOK, map[string]string{"status": "success"})
 	}
+}
+
+// handler for register endpoint
+func (a *authService) RegisterHandler(w http.ResponseWriter, r *http.Request) {
+
+	if isMethodAllowed := helper.MethodsAllowed(w, r, "POST"); !isMethodAllowed {
+		return
+	}
+
+	// get body
+	var body registerBody
+	payload := helper.ReadBody(w, r, &body)
+
+	// error if failed to parse body
+	if payload == nil || body.Username == "" || body.Email == "" || body.Password == "" {
+		helper.JsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Failed to parse body, check fields"})
+		return
+	}
+
+	err := a.CreateUser(body.Username, body.Email, body.Password)
+
+	switch {
+	case err != nil:
+		helper.JsonResponse(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	default:
+		helper.JsonResponse(w, http.StatusOK, map[string]string{"status": "success"})
+	}
+}
+
+// handler for session endpoint
+func (a *authService) GetSession(w http.ResponseWriter, r *http.Request) {
+
+	if isMethodAllowed := helper.MethodsAllowed(w, r, "GET"); !isMethodAllowed {
+		return
+	}
+
+	token, err := r.Cookie(a.Config.CookieName)
+
+	if err != nil {
+		helper.JsonResponse(w, http.StatusBadRequest, map[string]string{"error": "session cookie is missing"})
+		return
+	}
+
+	session, user, err := a.CheckSession(token.Value)
+
+	switch {
+	case err != nil:
+		helper.JsonResponse(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	default:
+		helper.JsonResponse(w, http.StatusOK, map[string]any{"session": &session, "user": &user})
+	}
+
 }

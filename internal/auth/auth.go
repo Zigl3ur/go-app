@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/mail"
 	"regexp"
 	"time"
@@ -15,16 +16,17 @@ import (
 )
 
 var (
-	errInvalidEmail       = errors.New("email is invalid")
-	errInvalidUsername    = errors.New("username is too short/long (min 3, max 20)")
-	errInvalidPassword    = errors.New("password is invalid, it must be min 8 chars long, contain 1 special char, 1 upper and lower char and 1 digit")
-	errInvalidCredentials = errors.New("invalid credentials")
-	errGenerateToken      = errors.New("failed to generate token")
-	errNoAccountFound     = errors.New("no account found")
-	errCreatingSession    = errors.New("failed to create session")
-	errDeletingSession    = errors.New("failed to delete session")
-	errSessionNotFound    = errors.New("session not found")
-	errSessionInvalid     = errors.New("session invalid")
+	errServerError         = errors.New("server errror")
+	errInvalidEmail        = errors.New("email is invalid")
+	errInvalidUsername     = errors.New("username is too short/long (min 3, max 20)")
+	errInvalidPassword     = errors.New("password is invalid, it must be min 8 chars long, contain 1 special char, 1 upper and lower char and 1 digit")
+	errInvalidCredentials  = errors.New("invalid credentials")
+	errNoAccountFound      = errors.New("no account found")
+	errAccountAlreadyExist = errors.New("account already exist")
+	errCreatingSession     = errors.New("failed to create session")
+	errDeletingSession     = errors.New("failed to delete session")
+	errSessionNotFound     = errors.New("session not found")
+	errSessionInvalid      = errors.New("session invalid")
 )
 
 type authService struct {
@@ -59,23 +61,23 @@ func NewAuthService(db *gorm.DB, endpoint, cookiename string, expirity time.Dura
 func generateToken(length uint8) (string, error) {
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {
-		return "", errGenerateToken
+		return "", errServerError
 	}
 	return hex.EncodeToString(b), nil
 }
 
 // create a user in the database,
 // return rowsAffected and an error
-func (a *authService) CreateUser(username, email, password string) (int64, error) {
+func (a *authService) CreateUser(username, email, password string) error {
 
 	// check username length
 	if utf8.RuneCountInString(username) <= 3 || utf8.RuneCountInString(username) >= 20 {
-		return 0, errInvalidUsername
+		return errInvalidUsername
 	}
 
 	// check email
 	if _, err := mail.ParseAddress(email); err != nil {
-		return 0, errInvalidEmail
+		return errInvalidEmail
 	}
 
 	// password regex check
@@ -86,7 +88,7 @@ func (a *authService) CreateUser(username, email, password string) (int64, error
 	hasLength := utf8.RuneCountInString(password) >= 8
 
 	if !(hasLower && hasUpper && hasDigit && hasSpecial && hasLength) {
-		return 0, errInvalidPassword
+		return errInvalidPassword
 	}
 
 	// hash password
@@ -103,35 +105,36 @@ func (a *authService) CreateUser(username, email, password string) (int64, error
 	result := a.Conn.Create(&user)
 
 	if result.Error != nil {
-		return result.RowsAffected, result.Error
+		if result.Error.Error() == "UNIQUE constraint failed: users.email" {
+			return errAccountAlreadyExist
+		}
+		return errServerError
 	}
 
-	return result.RowsAffected, nil
+	return nil
 }
 
 // delete a user in the database
 // return rowsAffected and an error
-func (a *authService) DeleteUser(username, email, password string) (int64, error) {
+func (a *authService) DeleteUser(username, email, password string) error {
 
 	var user store.User
 	result := a.Conn.Select("password").Where(&store.User{Username: username, Email: email}).Find(&user)
 
 	if result.Error != nil {
-		return 0, result.Error
+		return errNoAccountFound
 	}
 
 	// check password
 	if isEqual := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); isEqual != nil {
-		return 0, errInvalidCredentials
+		return errInvalidCredentials
 	}
 
-	result = a.Conn.Where(&user).Delete(&user)
-
-	if result.Error != nil {
-		return 0, result.Error
+	if result = a.Conn.Where(&user).Delete(&user); result.Error != nil {
+		return errServerError
 	}
 
-	return result.RowsAffected, nil
+	return nil
 }
 
 // create a session for given user credentials
@@ -140,9 +143,7 @@ func (a *authService) CreateSession(email, password string) (string, error) {
 
 	var user store.User
 	// retrieve user data
-	result := a.Conn.Select("id, password").Where("email = ?", email).First(&user)
-
-	if result.Error != nil {
+	if result := a.Conn.Select("id, password").Where("email = ?", email).First(&user); result.Error != nil {
 		return "", errNoAccountFound
 	}
 
@@ -154,21 +155,19 @@ func (a *authService) CreateSession(email, password string) (string, error) {
 	token, err := generateToken(32)
 
 	if err != nil {
-		return "", errGenerateToken
+		return "", errServerError
 	}
 
 	sessionTime := time.Now().Add(a.Config.SessionExpirity)
 
 	session := &store.Session{
-		Token:     token,
-		UserId:    user.Id,
-		ExpiresAt: sessionTime,
+		Token:    token,
+		UserId:   user.Id,
+		ExpireAt: sessionTime,
 	}
 
 	// create the session
-	result = a.Conn.Create(&session)
-
-	if result.Error != nil {
+	if result := a.Conn.Create(&session); result.Error != nil {
 		return "", errCreatingSession
 	}
 
@@ -177,36 +176,37 @@ func (a *authService) CreateSession(email, password string) (string, error) {
 
 // check if the given token is a valid session,
 // return true if valid, false for expired and an error
-func (a *authService) CheckSession(token string) (bool, error) {
+func (a *authService) CheckSession(token string) (*store.Session, *store.User, error) {
 
 	var session store.Session
-	result := a.Conn.Select("token").Where(&store.Session{Token: token}).Find(&session)
+	var user store.User
 
-	if result.Error != nil {
-		return false, result.Error
+	// TODO: join query maybe
+	if result := a.Conn.Select("token", "user_id", "created_at", "expire_at").Where(&store.Session{Token: token}).First(&session); result.Error != nil {
+		fmt.Println(result.Error)
+		return nil, nil, errSessionNotFound
+	}
 
-	} else if result.RowsAffected == 0 {
-		return false, errSessionNotFound
+	if result := a.Conn.Select("username", "email", "created_at", "updated_at").Where(&store.User{Id: session.UserId}).First(&user); result.Error != nil {
+		return nil, nil, errNoAccountFound
 	}
 
 	// check expirity of session
-	if isValid := !session.ExpiresAt.Equal(time.Now()); !isValid {
-		return false, errSessionInvalid
+	if isValid := !session.ExpireAt.Equal(time.Now()); !isValid {
+		return nil, nil, errSessionInvalid
 	}
 
-	return true, nil
+	return &session, &user, nil
 }
 
 // delete a session in the database,
 // return rowsAffected and an error
-func (a *authService) DeleteSession(token string) (int64, error) {
+func (a *authService) DeleteSession(token string) error {
 
 	var session store.Session
-	result := a.Conn.Where(&store.Session{Token: token}).Delete(&session)
-
-	if result.Error != nil {
-		return 0, errDeletingSession
+	if result := a.Conn.Where(&store.Session{Token: token}).Delete(&session); result.Error != nil {
+		return errDeletingSession
 	}
 
-	return result.RowsAffected, nil
+	return nil
 }

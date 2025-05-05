@@ -20,7 +20,7 @@ func main() {
 
 	auth := auth.NewAuthService(db, "", "", time.Duration(24*time.Hour))
 
-	http.HandleFunc("/login", auth.LoginHandler)
+	auth.Router()
 
 	log.Fatal(http.ListenAndServe(":8000", nil))
 }
