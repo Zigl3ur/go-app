@@ -3,8 +3,8 @@ default: install_deps build
 install_deps: 
 	go mod download
 
-build: cmd/main.go cmd/migrate/migrate.go
-	go build -o bin/app cmd/main.go
+build: main.go cmd/migrate/migrate.go
+	go build -o bin/app main.go
 	go build -o bin/migrate cmd/migrate/migrate.go
 
 clean:

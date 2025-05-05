@@ -6,22 +6,20 @@ import (
 	"github.com/Zigl3ur/go-app/internal/helper"
 )
 
-type LoginBody struct {
+type loginBody struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 // handler for Login Logic
-func (a *AuthService) LoginHandler(w http.ResponseWriter, r *http.Request) {
+func (a *authService) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
-	isMethodAllowed := helper.MethodsAllowed(w, r, "POST")
-
-	if !isMethodAllowed {
+	if isMethodAllowed := helper.MethodsAllowed(w, r, "POST"); !isMethodAllowed {
 		return
 	}
 
 	// get body
-	var body LoginBody
+	var body loginBody
 	payload := helper.ReadBody(w, r, &body)
 
 	// error if failed to parse body

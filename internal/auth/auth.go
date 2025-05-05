@@ -27,15 +27,31 @@ var (
 	errSessionInvalid     = errors.New("session invalid")
 )
 
-type AuthService struct {
+type authService struct {
 	Conn   *gorm.DB
-	Config *Config
+	Config *config
 }
 
-type Config struct {
+type config struct {
 	Endpoint        string
 	CookieName      string
 	SessionExpirity time.Duration
+}
+
+func NewAuthService(db *gorm.DB, endpoint, cookiename string, expirity time.Duration) *authService {
+
+	newConfig := &config{CookieName: cookiename, Endpoint: endpoint, SessionExpirity: expirity}
+	newService := &authService{Conn: db, Config: newConfig}
+
+	if endpoint == "" {
+		newConfig.Endpoint = "/api/auth"
+	}
+
+	if cookiename == "" {
+		newConfig.CookieName = "session"
+	}
+
+	return newService
 }
 
 // generate a hexa decimal token from given length,
@@ -50,7 +66,7 @@ func generateToken(length uint8) (string, error) {
 
 // create a user in the database,
 // return rowsAffected and an error
-func (a *AuthService) CreateUser(username, email, password string) (int64, error) {
+func (a *authService) CreateUser(username, email, password string) (int64, error) {
 
 	// check username length
 	if utf8.RuneCountInString(username) <= 3 || utf8.RuneCountInString(username) >= 20 {
@@ -95,7 +111,7 @@ func (a *AuthService) CreateUser(username, email, password string) (int64, error
 
 // delete a user in the database
 // return rowsAffected and an error
-func (a *AuthService) DeleteUser(username, email, password string) (int64, error) {
+func (a *authService) DeleteUser(username, email, password string) (int64, error) {
 
 	var user store.User
 	result := a.Conn.Select("password").Where(&store.User{Username: username, Email: email}).Find(&user)
@@ -120,7 +136,7 @@ func (a *AuthService) DeleteUser(username, email, password string) (int64, error
 
 // create a session for given user credentials
 // return the token and an error
-func (a *AuthService) CreateSession(email, password string) (string, error) {
+func (a *authService) CreateSession(email, password string) (string, error) {
 
 	var user store.User
 	// retrieve user data
@@ -161,7 +177,7 @@ func (a *AuthService) CreateSession(email, password string) (string, error) {
 
 // check if the given token is a valid session,
 // return true if valid, false for expired and an error
-func (a *AuthService) CheckSession(token string) (bool, error) {
+func (a *authService) CheckSession(token string) (bool, error) {
 
 	var session store.Session
 	result := a.Conn.Select("token").Where(&store.Session{Token: token}).Find(&session)
@@ -183,7 +199,7 @@ func (a *AuthService) CheckSession(token string) (bool, error) {
 
 // delete a session in the database,
 // return rowsAffected and an error
-func (a *AuthService) DeleteSession(token string) (int64, error) {
+func (a *authService) DeleteSession(token string) (int64, error) {
 
 	var session store.Session
 	result := a.Conn.Where(&store.Session{Token: token}).Delete(&session)

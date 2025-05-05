@@ -18,14 +18,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	auth := &auth.AuthService{
-		Conn: db,
-		Config: &auth.Config{
-			Endpoint:        "/api/v1/auth",
-			CookieName:      "session",
-			SessionExpirity: time.Duration(24 * time.Hour),
-		},
-	}
+	auth := auth.NewAuthService(db, "", "", time.Duration(24*time.Hour))
 
 	http.HandleFunc("/login", auth.LoginHandler)
 
