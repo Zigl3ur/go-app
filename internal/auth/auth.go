@@ -204,6 +204,11 @@ func (a *authService) CheckSession(token string) (*store.Session, *store.User, e
 func (a *authService) DeleteSession(token string) error {
 
 	var session store.Session
+
+	if token == "" {
+		return nil
+	}
+
 	if result := a.Conn.Where(&store.Session{Token: token}).Delete(&session); result.Error != nil {
 		return errDeletingSession
 	}

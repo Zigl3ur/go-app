@@ -18,7 +18,7 @@ type registerBody struct {
 }
 
 // handler for login endpoint
-func (a *authService) LoginHandler(w http.ResponseWriter, r *http.Request) {
+func (a *authService) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	if isMethodAllowed := helper.MethodsAllowed(w, r, "POST"); !isMethodAllowed {
 		return
@@ -59,7 +59,7 @@ func (a *authService) LoginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // handler for register endpoint
-func (a *authService) RegisterHandler(w http.ResponseWriter, r *http.Request) {
+func (a *authService) registerHandler(w http.ResponseWriter, r *http.Request) {
 
 	if isMethodAllowed := helper.MethodsAllowed(w, r, "POST"); !isMethodAllowed {
 		return
@@ -86,7 +86,7 @@ func (a *authService) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // handler for session endpoint
-func (a *authService) GetSession(w http.ResponseWriter, r *http.Request) {
+func (a *authService) getSession(w http.ResponseWriter, r *http.Request) {
 
 	if isMethodAllowed := helper.MethodsAllowed(w, r, "GET"); !isMethodAllowed {
 		return
@@ -108,4 +108,33 @@ func (a *authService) GetSession(w http.ResponseWriter, r *http.Request) {
 		helper.JsonResponse(w, http.StatusOK, map[string]any{"session": &session, "user": &user})
 	}
 
+}
+
+// handler for logout endpoint
+func (a *authService) logoutHandler(w http.ResponseWriter, r *http.Request) {
+
+	if isMethodAllowed := helper.MethodsAllowed(w, r, "GET"); !isMethodAllowed {
+		return
+	}
+
+	token, err := r.Cookie(a.Config.CookieName)
+
+	if err != nil {
+		return
+	}
+
+	a.DeleteSession(token.Value)
+
+	cookie := http.Cookie{
+		Name:     a.Config.CookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+
+	http.SetCookie(w, &cookie)
+	helper.JsonResponse(w, http.StatusOK, map[string]string{"status": "success"})
 }
