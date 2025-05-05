@@ -1,12 +1,16 @@
-default: install_deps build
+default: install_deps migrate seed run
 
 install_deps: 
 	go mod download
 
-build: main.go cmd/migrate/migrate.go
-	go build -o bin/app main.go
-	go build -o bin/migrate cmd/migrate/migrate.go
+migrate: cmd/migrate/migrate.go
+	go run cmd/migrate/migrate.go
+
+seed: cmd/seed/seed.go
+	go run cmd/seed/seed.go
+
+run: main.go
+	go run main.go
 
 clean:
-	rm -rf bin/
 	go clean
