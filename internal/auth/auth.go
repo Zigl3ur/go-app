@@ -122,7 +122,7 @@ func (a *authService) updateUser(sessionToken, username, password string) error 
 	}
 
 	// check session to get userId from it
-	_, userSession, err := a.checkSession(sessionToken)
+	_, userSession, err := a.getSession(sessionToken)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (a *authService) updateUser(sessionToken, username, password string) error 
 func (a *authService) deleteUser(sessionToken string) error {
 
 	// check session to get userId from it
-	_, user, err := a.checkSession(sessionToken)
+	_, user, err := a.getSession(sessionToken)
 	if err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func (a *authService) createSession(email, password string) (string, error) {
 }
 
 // check if the given token is a valid session,
-func (a *authService) checkSession(token string) (*store.Session, *store.User, error) {
+func (a *authService) getSession(token string) (*store.Session, *store.User, error) {
 
 	var session store.Session
 	var user store.User

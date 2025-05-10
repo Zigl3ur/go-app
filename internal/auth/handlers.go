@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/Zigl3ur/go-app/internal/helper"
@@ -20,6 +21,28 @@ type registerBody struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+// middleware that block req with invalid session
+func (a *authService) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		fmt.Println("middleware hit")
+
+		token, err := r.Cookie(a.Config.CookieName)
+
+		if err != nil {
+			helper.JsonResponse(w, http.StatusUnauthorized, map[string]string{"error": "session cookie is missing"})
+			return
+		}
+
+		if _, _, err = a.getSession(token.Value); err != nil {
+			helper.JsonResponse(w, http.StatusUnauthorized, map[string]string{"error": "session is invalid"})
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // handler for login endpoint
@@ -96,12 +119,7 @@ func (a *authService) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	token, err := r.Cookie(a.Config.CookieName)
-
-	if err != nil {
-		helper.JsonResponse(w, http.StatusBadRequest, map[string]string{"error": "session cookie is missing"})
-		return
-	}
+	token, _ := r.Cookie(a.Config.CookieName)
 
 	switch r.Method {
 	case "PUT":
@@ -115,7 +133,7 @@ func (a *authService) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		if err = a.updateUser(token.Value, body.Username, body.Password); err != nil {
+		if err := a.updateUser(token.Value, body.Username, body.Password); err != nil {
 			helper.JsonResponse(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
@@ -123,18 +141,29 @@ func (a *authService) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		helper.JsonResponse(w, http.StatusOK, map[string]string{"success": "successfully updated account info"})
 
 	case "DELETE":
-		if err = a.deleteUser(token.Value); err != nil {
+		if err := a.deleteUser(token.Value); err != nil {
 			helper.JsonResponse(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 
+		cookie := &http.Cookie{
+			Name:     a.Config.CookieName,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteLaxMode,
+		}
+
+		http.SetCookie(w, cookie)
 		helper.JsonResponse(w, http.StatusOK, map[string]string{"success": "successfully deleted account"})
 	}
 
 }
 
 // handler for session endpoint
-func (a *authService) getSession(w http.ResponseWriter, r *http.Request) {
+func (a *authService) getSessionHandler(w http.ResponseWriter, r *http.Request) {
 
 	if isMethodAllowed := helper.MethodsAllowed(w, r, "GET"); !isMethodAllowed {
 		return
@@ -147,7 +176,7 @@ func (a *authService) getSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, user, err := a.checkSession(token.Value)
+	session, user, err := a.getSession(token.Value)
 
 	switch {
 	case err != nil:
@@ -173,7 +202,7 @@ func (a *authService) logoutHandler(w http.ResponseWriter, r *http.Request) {
 
 	a.deleteSession(token.Value)
 
-	cookie := http.Cookie{
+	cookie := &http.Cookie{
 		Name:     a.Config.CookieName,
 		Value:    "",
 		Path:     "/",
@@ -183,6 +212,6 @@ func (a *authService) logoutHandler(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	}
 
-	http.SetCookie(w, &cookie)
+	http.SetCookie(w, cookie)
 	helper.JsonResponse(w, http.StatusOK, map[string]string{"status": "success"})
 }
