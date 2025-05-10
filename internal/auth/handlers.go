@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/Zigl3ur/go-app/internal/helper"
@@ -26,8 +25,6 @@ type registerBody struct {
 // middleware that block req with invalid session
 func (a *authService) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		fmt.Println("middleware hit")
 
 		token, err := r.Cookie(a.Config.CookieName)
 

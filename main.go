@@ -18,7 +18,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	auth := auth.NewAuthService(db, "/api/v1/auth", "session-token", time.Duration(time.Hour))
+	auth := auth.NewAuthService(db, "", "", time.Duration(time.Hour))
 
 	auth.Router()
 

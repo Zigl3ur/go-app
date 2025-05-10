@@ -8,9 +8,10 @@ It was made to learn the GO programming language.
 
 Base path is `/api/v1/auth`
 
-- `POST /register` - Register a new user
 - `POST /login` - Login and receive a session token
+- `POST /register` - Register a new user
 - `GET /session` - Retrieve the current session information
+- `PUT, DELETE /user` - Update or delete the current user
 - `DELETE /logout` - Logout and invalidate the session token
 
 ## Run
