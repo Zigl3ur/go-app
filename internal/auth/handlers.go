@@ -11,6 +11,11 @@ type loginBody struct {
 	Password string `json:"password"`
 }
 
+type updateBody struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 type registerBody struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
@@ -36,7 +41,7 @@ func (a *authService) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// create session in database
 	// no need to check rows since its checked in the func
-	token, err := a.CreateSession(body.Email, body.Password)
+	token, err := a.createSession(body.Email, body.Password)
 
 	// response accordingly to database response
 	switch {
@@ -75,7 +80,7 @@ func (a *authService) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := a.CreateUser(body.Username, body.Email, body.Password)
+	err := a.createUser(body.Username, body.Email, body.Password)
 
 	switch {
 	case err != nil:
@@ -83,6 +88,49 @@ func (a *authService) registerHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		helper.JsonResponse(w, http.StatusOK, map[string]string{"status": "success"})
 	}
+}
+
+func (a *authService) updateUserHandler(w http.ResponseWriter, r *http.Request) {
+
+	if isMethodAllowed := helper.MethodsAllowed(w, r, "PUT", "DELETE"); !isMethodAllowed {
+		return
+	}
+
+	token, err := r.Cookie(a.Config.CookieName)
+
+	if err != nil {
+		helper.JsonResponse(w, http.StatusBadRequest, map[string]string{"error": "session cookie is missing"})
+		return
+	}
+
+	switch r.Method {
+	case "PUT":
+		// get body
+		var body updateBody
+		payload := helper.ReadBody(w, r, &body)
+
+		// error if failed to parse body
+		if payload == nil || body.Username == "" || body.Password == "" {
+			helper.JsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Failed to parse body, check fields"})
+			return
+		}
+
+		if err = a.updateUser(token.Value, body.Username, body.Password); err != nil {
+			helper.JsonResponse(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		helper.JsonResponse(w, http.StatusOK, map[string]string{"success": "successfully updated account info"})
+
+	case "DELETE":
+		if err = a.deleteUser(token.Value); err != nil {
+			helper.JsonResponse(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		helper.JsonResponse(w, http.StatusOK, map[string]string{"success": "successfully deleted account"})
+	}
+
 }
 
 // handler for session endpoint
@@ -99,7 +147,7 @@ func (a *authService) getSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, user, err := a.CheckSession(token.Value)
+	session, user, err := a.checkSession(token.Value)
 
 	switch {
 	case err != nil:
@@ -113,7 +161,7 @@ func (a *authService) getSession(w http.ResponseWriter, r *http.Request) {
 // handler for logout endpoint
 func (a *authService) logoutHandler(w http.ResponseWriter, r *http.Request) {
 
-	if isMethodAllowed := helper.MethodsAllowed(w, r, "GET"); !isMethodAllowed {
+	if isMethodAllowed := helper.MethodsAllowed(w, r, "DELETE"); !isMethodAllowed {
 		return
 	}
 
@@ -123,7 +171,7 @@ func (a *authService) logoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.DeleteSession(token.Value)
+	a.deleteSession(token.Value)
 
 	cookie := http.Cookie{
 		Name:     a.Config.CookieName,

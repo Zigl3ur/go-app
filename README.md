@@ -11,7 +11,7 @@ Base path is `/api/v1/auth`
 - `POST /register` - Register a new user
 - `POST /login` - Login and receive a session token
 - `GET /session` - Retrieve the current session information
-- `GET /logout` - Logout and invalidate the session token
+- `DELETE /logout` - Logout and invalidate the session token
 
 ## Run
 
