@@ -6,7 +6,7 @@ It was made to learn the GO programming language.
 
 ## Endpoints
 
-Base path is `/api/auth`
+Base path is `/api/v1/auth`
 
 - `POST /register` - Register a new user
 - `POST /login` - Login and receive a session token

@@ -16,7 +16,7 @@ func MethodsAllowed(w http.ResponseWriter, r *http.Request, allowed ...string) b
 		return true
 	}
 
-	JsonResponse(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method " + r.Method + " not allowed"})
+	JsonResponse(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
 
 	return false
 }

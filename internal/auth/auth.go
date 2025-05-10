@@ -192,7 +192,7 @@ func (a *authService) CheckSession(token string) (*store.Session, *store.User, e
 	}
 
 	// check expirity of session
-	if isValid := !session.ExpireAt.Equal(time.Now()); !isValid {
+	if isValid := time.Now().Compare(session.ExpireAt); isValid == 1 {
 		return nil, nil, errSessionInvalid
 	}
 
